@@ -37,39 +37,51 @@ double dotProduct(Point3D &v1, Point3D &v2)
 bool rayIntersectsTriangle(Point3D rayOrigin, Point3D rayVector,
                            Triangle inTriangle)
 {
-    const float EPSILON = 0.0000001;
+    const float EPSILON = 0.00001;
     Point3D vertex0 = inTriangle.p1;
     Point3D vertex1 = inTriangle.p2;
     Point3D vertex2 = inTriangle.p3;
 
-    Point3D edge1, edge2, h, s, q;
-    double a, f, u, v;
+    Point3D edge1, edge2, pvec, tvec, qvec;
+    double det, f, u, v;
 
     edge1 = difference(vertex1, vertex0);
     edge2 = difference(vertex2, vertex0);
 
-    h = crossProduct(rayVector, edge2);
-    a = dotProduct(edge1, h);
+    pvec = crossProduct(rayVector, edge2);
+    det = dotProduct(edge1, pvec);
 
-    if (a > -EPSILON && a < EPSILON)
+    if (abs(det) < EPSILON)
+    {
         return false;
+    }
 
-    f = 1.0 / a;
-    s = difference(rayOrigin, vertex0);
-    u = f * dotProduct(s, h);
+    tvec = difference(rayOrigin, vertex0);
 
-    if (u < 0.0 || u > 1.0)
+    f = 1.0 / det;
+    u = f * dotProduct(tvec, pvec);
+
+    if (u < 0.0 + EPSILON || u > 1.0 - EPSILON)
+    {
         return false;
+    }
 
-    q = crossProduct(s, edge1);
-    v = f * dotProduct(rayVector, q);
-    if (v < 0.0 || u + v > 1.0)
+    qvec = crossProduct(tvec, edge1);
+
+    v = dotProduct(rayVector, qvec);
+    v = f * v;
+
+    if (v < 0.0 + EPSILON || u + v > 1.0 - EPSILON)
+    {
         return false;
+    }
 
-    double t = f * dotProduct(edge2, q);
+    double t = f * dotProduct(edge2, qvec);
 
-    if (t > EPSILON)
+    if (t >= EPSILON && t <= 1.0 + EPSILON)
+    {
         return true;
+    }
     return false;
 }
 
@@ -148,32 +160,30 @@ vector<Triangle> readTriangles(string filename, vector<Point3D> punti)
 bool rayIntersectsAnyTriangle(Point3D origin, Point3D dir,
                               vector<Triangle> triangles)
 {
-    for (const Triangle &triangle : triangles)
+    for (int i = 0; i < triangles.size(); i++)
     {
-        bool r = rayIntersectsTriangle(origin, dir, triangle);
+        bool r = rayIntersectsTriangle(origin, dir, triangles[i]);
         if (r)
         {
-            return true;
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 int main()
 {
 
     ofstream oFile("out.txt");
-    vector<Point3D> punti = readPoints("verts.csv");
+    vector<Point3D> punti = readPoints("rotated_verts.csv");
     vector<Triangle> triangoli = readTriangles("meshes.csv", punti);
 
     Point3D rayOrigin = {0.0, 0.0, 0.0};
 
     for (const Point3D &punto : punti)
     {
-        if (punto.x > 0 || punto.x <= 0)
-            oFile << rayIntersectsAnyTriangle(rayOrigin, punto, triangoli) << endl;
+        oFile << rayIntersectsAnyTriangle(rayOrigin, punto, triangoli) << endl;
     }
     oFile.close();
-
     return 0;
 }
