@@ -190,7 +190,7 @@ vector<Triangle> readTriangles(string filename, vector<Point3D> punti)
 
 int main()
 {
-    vector<Point3D> punti = readPoints("verts.csv");
+    vector<Point3D> punti = readPoints("rotated_verts.csv");
     vector<Triangle> triangoli = readTriangles("meshes.csv", punti);
 
 	int Np = punti.size();
