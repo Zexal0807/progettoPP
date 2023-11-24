@@ -105,12 +105,10 @@ void rayIntersectsAnyTrianglesKernel(
 	Point3D point = ps[idx];
 	
 	Point3D dir = point;
-		
-	result[idx] = true;
-	
+
 	__shared__ Triangle sh_triangle[SH_SIZE];
 	
-	bool res = true;
+	result[idx] = true;
 	
 	for(int m = 0; m < Nt/SH_SIZE; m++){
 		
@@ -125,13 +123,12 @@ void rayIntersectsAnyTrianglesKernel(
 			
 			bool r = rayIntersectsTriangle(rayOrigin, dir, t);
 			if(r){
-				res = false;
+				result[idx] = false;
 			}
 		}
 		__syncthreads();
 		
 	}
-	result[idx] = res;	
 }
 
 vector<Point3D> readPoints(string filename)
