@@ -2,4 +2,4 @@
 
 DIR=`dirname $0`
 
-nvcc -w "$DIR"/parallel.cu -o parallel.exe
+nvcc -w -lineinfo "$DIR"/parallel.cu -o parallel.exe
