@@ -5,7 +5,7 @@
 #include <sstream>
 #include <vector>
 
-#define SH_SIZE 512
+#define SH_SIZE 256
 
 using namespace std;
 
@@ -100,7 +100,10 @@ void rayIntersectsAnyTrianglesKernel(
 	int Nt,
 	bool *result
 ){
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int bx = blockDim.x;
+	int tx = threadIdx.x;
+
+	int idx = blockIdx.x * bx + tx;
 
 	Point3D point = ps[idx];
 	
@@ -110,25 +113,27 @@ void rayIntersectsAnyTrianglesKernel(
 	
 	result[idx] = true;
 	
-	for(int m = 0; m < Nt/SH_SIZE; m++){
+	int tiles = Nt/SH_SIZE;
+	if(Nt % SH_SIZE)
+		tiles++;
+	
+	for(int m = 0; m < tiles; m++){
 		
-		if(idx < SH_SIZE){
-			sh_triangle[idx] = ts[m * SH_SIZE + idx];
+		if(tx < SH_SIZE){
+			sh_triangle[tx] = ts[m * SH_SIZE + tx];
 		}
-		
 		__syncthreads();
-		
-		for(int i = 0; i < SH_SIZE; i++){
+
+		for(int i = 0; i < SH_SIZE && m * SH_SIZE + i < Nt; i++){
 			Triangle t = sh_triangle[i];
 			
 			bool r = rayIntersectsTriangle(rayOrigin, dir, t);
 			if(r){
 				result[idx] = false;
-			}
+			}		
 		}
 		__syncthreads();
-		
-	}
+	}	
 }
 
 vector<Point3D> readPoints(string filename)
