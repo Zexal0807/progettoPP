@@ -42,9 +42,9 @@
 
 \begin{document}
 
-\title{Parallelizzazione dell'algoritmo di intersezione di Möller\-Trumbore}
+\title{Parallelizzazione dell'algoritmo \\di intersezione di Möller-Trumbore}
 \author{Gallina Roberto}
-\date{06/11/2023}
+\date{08/12/2023}
 
 \maketitle
 
@@ -168,40 +168,47 @@ Vado quindi ad implementare la versione del codice vista precedentemente
         Point3D rayVector,
         Triangle inTriangle
     ){
-        const float EPSILON = 0.0000001;
+        const float EPSILON = 0.00001;
         Point3D vertex0 = inTriangle.p1;
         Point3D vertex1 = inTriangle.p2;
         Point3D vertex2 = inTriangle.p3;
 
-        Point3D edge1, edge2, h, s, q;
-        double a, f, u, v;
+        Point3D edge1, edge2, pvec, tvec, qvec;
+        double det, f, u, v;
 
         edge1 = difference(vertex1, vertex0);
         edge2 = difference(vertex2, vertex0);
 
-        h = crossProduct(rayVector, edge2);
-        a = dotProduct(edge1, h);
+        pvec = crossProduct(rayVector, edge2);
+        det = dotProduct(edge1, pvec);
 
-        if (a > -EPSILON && a < EPSILON)
+        if (abs(det) < EPSILON) {
             return false;
+        }
 
-        f = 1.0 / a;
-        s = difference(rayOrigin, vertex0);
-        u = f * dotProduct(s, h);
+        tvec = difference(rayOrigin, vertex0);
 
-        if (u < 0.0 || u > 1.0)
+        f = 1.0 / det;
+        u = f * dotProduct(tvec, pvec);
+
+        if (u < 0.0 + EPSILON || u > 1.0 - EPSILON) {
             return false;
+        }
 
-        q = crossProduct(s, edge1);
-        v = f * dotProduct(rayVector, q);
-        if (v < 0.0 || u + v > 1.0)
+        qvec = crossProduct(tvec, edge1);
+
+        v = dotProduct(rayVector, qvec);
+        v = f * v;
+
+        if (v < 0.0 + EPSILON || u + v > 1.0 - EPSILON) {
             return false;
+        }
 
-        double t = f * dotProduct(edge2, q);
+        double t = f * dotProduct(edge2, qvec);
 
-        if (t > EPSILON)
+        if (t >= EPSILON && t <= 1.0 + EPSILON) {
             return true;
-
+        }
         return false;
     }
 \end{lstlisting}
@@ -288,7 +295,7 @@ Vado quindi a creare una funzione che dato il nome del file genera un vettore di
                     punto.y = stod(valore);
                 }
                 if (getline(ss, valore)) {
-                punto.z = stod(valore);
+                    punto.z = stod(valore);
                 }
                 punti.push_back(punto);
             }
@@ -346,7 +353,7 @@ Nel main uso queste funzioni per caricare i dati.
     int main() {
         vector<Point3D> punti = readPoints("verts.csv");
         vector<Triangle> triangoli = readTriangles("meshes.csv", punti);
-        .
+        ..
     } 
 \end{lstlisting}
 
@@ -358,13 +365,13 @@ Vado ora a implementare una funzione che data l'origine, la direzzione e un vett
 
 \begin{lstlisting}[language=c++]
     bool rayIntersectsAnyTriangle(Point3D origin, Point3D dir, vector<Triangle> triangles) {
-        for (const Triangle &triangle : triangles) {
-            bool r = rayIntersectsTriangle(origin, dir, triangle);
+        for (int i = 0; i < triangles.size(); i++) {
+            bool r = rayIntersectsTriangle(origin, dir, triangles[i]);
             if (r) {
-                return true;
+                return false;
             }
         }
-        return false;
+        return true;
     }
 \end{lstlisting}
 
@@ -379,7 +386,9 @@ Nel main vado quindi a verificare se ogni punto interserca almeno un triangolo
 
         for (const Point3D &punto : punti) {
             if (punto.x > 0 || punto.x <= 0)
-                cout << rayIntersectsAnyTriangle(rayOrigin, punto, triangoli) << endl;
+                cout << rayIntersectsAnyTriangle(
+                    rayOrigin, punto, triangoli
+                ) << endl;
         }
         
         return 0;
@@ -401,7 +410,9 @@ Non rimane che aggiungere la stampa direttamente su un file.
         for (const Point3D &punto : punti)
         {
             if (punto.x > 0 || punto.x <= 0)
-                oFile << rayIntersectsAnyTriangle(rayOrigin, punto, triangoli) << endl;
+                oFile << rayIntersectsAnyTriangle(
+                    rayOrigin, punto, triangoli
+                ) << endl;
         }
         oFile.close();
     
@@ -425,8 +436,6 @@ Ricordiamo che le parti principali per usare un Kernel Cuda sono:
     \item Passaggio dati dal device all'host
     \item Deallocazione memoria del device
 \end{itemize}
-
-\newpage
 
 \subsubsection{Passaggio dati}
 
@@ -463,6 +472,8 @@ E copio i dati.
         cudaMemcpyHostToDevice
     );
 \end{lstlisting}
+
+\newpage
 
 Andrò poi ad eseguire il kernel (spiegato successivamente), prima però calcolo la dimensione dei blocchi
 
@@ -501,7 +512,6 @@ E infine libero lo spazio allocato.
     cudaFree( d_result );
 \end{lstlisting}
 
-
 Il kernel sarà una funzione void e dovrà ricevere i parametri precedentemente preparato, ogni thread analizzerà un unico punto, per fare ciò calcola l'indice del punto che deve analizzare.
 
 \begin{lstlisting}[language=c++]
@@ -539,14 +549,14 @@ Per definizione devo restituire \emph{true} se almeno un triangolo è intersecat
         Point3D point = ps[idx];
         Point3D dir = point;
 
-        result[idx] = false;
+        result[idx] = true;
         
         for(int i = 0; i < Nt; i++){
             Triangle t = ts[i];
             
             bool r = rayIntersectsTriangle(rayOrigin, dir, t);
             if(r){
-                result[idx] = true;
+                result[idx] = false;
             }
         }	
     }
@@ -562,9 +572,11 @@ Implemento quindi la funzione che verifica l\'insersezione di un raggio in un tr
 
     __device__ 
     Point3D crossProduct(Point3D &v1, Point3D &v2){
-        return {    v1.y * v2.z - v1.z * v2.y, 
+        return {    
+            v1.y * v2.z - v1.z * v2.y, 
             v1.z * v2.x - v1.x * v2.z,
-            v1.x * v2.y - v1.y * v2.x};
+            v1.x * v2.y - v1.y * v2.x
+        };
     }
 
     __device__ 
@@ -584,39 +596,47 @@ Vado ora a creare una funzione partendo da quando visto sulla Wiki, usando le fu
         Point3D rayVector,
         Triangle inTriangle
     ){
-        const float EPSILON = 0.0000001;
+        const float EPSILON = 0.00001;
         Point3D vertex0 = inTriangle.p1;
         Point3D vertex1 = inTriangle.p2;
         Point3D vertex2 = inTriangle.p3;
 
-        Point3D edge1, edge2, h, s, q;
-        double a, f, u, v;
+        Point3D edge1, edge2, pvec, tvec, qvec;
+        double det, f, u, v;
 
         edge1 = difference(vertex1, vertex0);
         edge2 = difference(vertex2, vertex0);
 
-        h = crossProduct(rayVector, edge2);
-        a = dotProduct(edge1, h);
+        pvec = crossProduct(rayVector, edge2);
+        det = dotProduct(edge1, pvec);
 
-        if (a > -EPSILON && a < EPSILON)
+        if (abs(det) < EPSILON) {
             return false;
+        }
 
-        f = 1.0 / a;
-        s = difference(rayOrigin, vertex0);
-        u = f * dotProduct(s, h);
+        tvec = difference(rayOrigin, vertex0);
 
-        if (u < 0.0 || u > 1.0)
+        f = 1.0 / det;
+        u = f * dotProduct(tvec, pvec);
+
+        if (u < 0.0 + EPSILON || u > 1.0 - EPSILON) {
             return false;
+        }
 
-        q = crossProduct(s, edge1);
-        v = f * dotProduct(rayVector, q);
-        if (v < 0.0 || u + v > 1.0)
+        qvec = crossProduct(tvec, edge1);
+
+        v = dotProduct(rayVector, qvec);
+        v = f * v;
+
+        if (v < 0.0 + EPSILON || u + v > 1.0 - EPSILON) {
             return false;
+        }
 
-        double t = f * dotProduct(edge2, q);
+        double t = f * dotProduct(edge2, qvec);
 
-        if (t > EPSILON)
+        if (t >= EPSILON && t <= 1.0 + EPSILON) {
             return true;
+        }
         return false;
     }
 \end{lstlisting}
@@ -655,33 +675,33 @@ Essendo la dimensione della shared minore del numero totale di triangoli, sarà 
         int Nt,
         bool *result
     ){
-        int idx = blockIdx.x * blockDim.x + threadIdx.x;
+        int bx = blockDim.x, tx = threadIdx.x;
+        int idx = blockIdx.x * bx + tx;
     
-        Point3D point = ps[idx];   
+        Point3D point = ps[idx];
         Point3D dir = point;
-        result[idx] = false;
-        
+    
         __shared__ Triangle sh_triangle[SH_SIZE];
-        
-        bool res = false;
-        
-        for(int m = 0; m < Nt/SH_SIZE; m++){
-            if(idx < SH_SIZE){
-                sh_triangle[idx] = ts[m * SH_SIZE + idx];
-            }
+        int tiles = Nt/SH_SIZE;
+        if(Nt % SH_SIZE)
+            tiles++;
+
+        result[idx] = true;
+        for(int m = 0; m < tiles; m++){
+            if(tx < SH_SIZE)
+                sh_triangle[tx] = ts[m * SH_SIZE + tx];
+            
             __syncthreads();
     
-            for(int i = 0; i < SH_SIZE; i++){
+            for(int i = 0; i < SH_SIZE && m * SH_SIZE+i < Nt; i++){
                 Triangle t = sh_triangle[i];
                 
                 bool r = rayIntersectsTriangle(rayOrigin, dir, t);
-                if(r){
-                    res = true;
-                }
+                if(r)
+                    result[idx] = false;	
             }
             __syncthreads();
-        }
-        result[idx] = res;
+        }	
     }
 \end{lstlisting}
 
