@@ -712,16 +712,52 @@ Tutte le esecuzioni sono state fatte su un pc con:
         Parallelo senza SH          & \begin{tabular}{@{} c @{}}536918784ns = 536918\textmu s \\ 536ms = 0.5s   \end{tabular}    \\[10pt] \hline
 
         \midrule
-        Parallelo con SH (Size 16)  & \begin{tabular}{@{} c @{}}362736128ns = 362736\textmu s \\ 362ms = 0.3s   \end{tabular}    \\[10pt] \hline
 
-        Parallelo con SH (Size 32)  & \begin{tabular}{@{} c @{}}412990208ns = 412990\textmu s \\ 412ms = 0.4s   \end{tabular}    \\[10pt] \hline
-
-        Parallelo con SH (Size 64)  & \begin{tabular}{@{} c @{}}392447744ns = 392447\textmu s \\ 392ms = 0.4s   \end{tabular}   \\[10pt] \hline
-
-        Parallelo con SH (Size 128) & \begin{tabular}{@{} c @{}}411473152ns = 411473\textmu s \\ 411ms = 0.4s   \end{tabular}  \\[10pt] \hline
-
-        Parallelo con SH (Size 256) & \begin{tabular}{@{} c @{}}299524300ns = 299524\textmu s \\ 299ms = 0.3s   \end{tabular}  \\[10pt] \hline
+        Parallelo con SH (Size 256) & \begin{tabular}{@{} c @{}}299524300ns = 299524\textmu s \\ 299ms = 0.3s   \end{tabular}    \\[10pt] \hline
     \end{tabular}
+\end{figure}
+
+\newpage
+
+\subsection{Profiling}
+
+Usando un programma di profiling (NVIDIA Nsight Compute) ho cercato di analizzare se i programmi scritti fossero compute-bound (spendevano più tempo eseguendo i calcoli) o memory-bound (spendevano più tempo eseguendo spostando i dati dalla memoria centrale a quella del dispositivo o viceversa).
+
+\subsubsection{Parallelo senza SH}
+
+Analizzando l'eseguibile che non usa la shared memory, noto che il tempo speso per la parte di computazione è quasi 15 volte superiore a quello per lo scambio dati in memoria (81.66\% contro il 4.96\%), l'eseguibile è sicuramente computy-bound.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.98\textwidth]{images/parallel.png}
+    \caption{Profiling per l'eseguibile parallelo senza SH}
+\end{figure}
+
+Analizzo poi il diagramma degli accessi in memoria, dai cui si nota come tutte le richieste passino dal Kernel, alla memoria globale (passando poi per le varie memorie cache) fino ad arrivare alla memoria del device.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.98\textwidth]{images/parallel_chart.png}
+    \caption{Memory access diagram per l'eseguibile parallelo senza SH}
+\end{figure}
+
+
+\subsubsection{Parallelo con SH (Size 256)}
+
+Analizzando l'eseguibile che usa la shared memory, noto che anche in esso il tempo speso per la parte di computazione è quasi 15 volte superiore a quello per lo scambio dati in memoria (81.70\% contro il 4.99\%).
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.98\textwidth]{images/shared.png}
+    \caption{Profiling per l'eseguibile parallelo con SH}
+\end{figure}
+
+Invece, analizzando il diagramma degli accessi in memoria, si nota come quasi tutte le richieste passino dalla shared memory (passando poi per le varie memorie cache) fino ad arrivare alla memoria del device e questa è la motivazione delle prestazioni migliori.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.98\textwidth]{images/shared_chart.png}
+    \caption{Memory access diagram per l'eseguibile parallelo con SH}
 \end{figure}
 
 \subsection{Conclusioni}
